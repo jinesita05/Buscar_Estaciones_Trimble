@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estaciones CORS Trimble - República Dominicana</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="geoportal.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1>📡 ESTACIONES DE REFERENCIA DE OPERACIÓN CONTINUA</h1>
+                <p>Red de Estaciones CORS GNSS - República Dominicana</p>
+            </div>
+            <div class="logo-container">
+                <div class="trimble-logo">
+                    <svg viewBox="0 0 200 50" xmlns="http://www.w3.org/2000/svg">
+                        <text x="10" y="35" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#1a5490">TRIMBLE</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        <div id="stats" class="stats"></div>
+        <div class="content-wrapper">
+            <div class="sidebar">
+                <!-- Panel de búsqueda -->
+                <div class="search-panel">
+                    <h2>🔍 Buscar Estaciones</h2>
+                    <div class="search-group">
+                        <label>Provincia</label>
+                        <select id="provinciaSelect">
+                            <option value="">Todas las provincias</option>
+                        </select>
+                    </div>
+                    <div class="search-group">
+                        <label>Nombre de Estación</label>
+                        <input type="text" id="nombreInput" placeholder="Buscar por nombre...">
+                    </div>
+                    <button class="btn-search" onclick="filtrarEstaciones()">Buscar</button>
+                    <button class="btn-clear" onclick="limpiarFiltros()">Limpiar Filtros</button>
+                </div>
+                
+                <!-- Panel de medición -->
+                <div class="measurement-panel">
+                    <h2>📏 Herramienta de Medición</h2>
+                    
+                    <!-- Modo de medición por clicks -->
+                    <div class="measurement-section">
+                        <h3>Medir en el Mapa</h3>
+                        <button id="btnToggleMeasure" class="btn-measure">📏 Medir Distancia</button>
+                        <button id="btnClearMeasure" class="btn-clear-measure">🗑️ Limpiar Mediciones</button>
+                        <div id="resultadoDistancia" style="margin-top: 15px;"></div>
+                    </div>
+                    
+                    <!-- Modo de medición por coordenadas -->
+                    <div class="measurement-section" style="margin-top: 20px;">
+                        <h3>Medir por Coordenadas</h3>
+                        <div class="coord-group">
+                            <label>Punto 1:</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="number" id="lat1" placeholder="Latitud" step="0.000001" style="flex: 1;">
+                                <input type="number" id="lon1" placeholder="Longitud" step="0.000001" style="flex: 1;">
+                            </div>
+                        </div>
+                        <div class="coord-group" style="margin-top: 10px;">
+                            <label>Punto 2:</label>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="number" id="lat2" placeholder="Latitud" step="0.000001" style="flex: 1;">
+                                <input type="number" id="lon2" placeholder="Longitud" step="0.000001" style="flex: 1;">
+                            </div>
+                        </div>
+                        <button id="btnMeasureCoords" class="btn-measure-coords">🎯 Calcular Distancia</button>
+                    </div>
+                </div>
+                
+                <!-- Info de provincia (opcional) -->
+                <div class="provincia-info" id="provinciaInfo">
+                    <h3 id="provinciaNombre"></h3>
+                    <p id="provinciaEstaciones"></p>
+                </div>
+                
+                <!-- Lista de estaciones -->
+                <div class="stations-list" id="stationsList">
+                    <div style="text-align: center; padding: 20px; color: #666;">
+                        Cargando estaciones...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="map-container">
+                <div id="loading" class="loading-overlay">⏳ Cargando estaciones CORS...</div>
+                <div id="map"></div>
+                <div id="reportPanel" class="report-panel">
+                    <div class="report-header">
+                        <h2>📊 Reporte de Estación</h2>
+                        <button class="btn-close" onclick="cerrarReporte()">✕</button>
+                    </div>
+                    <div class="report-content" id="reportContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="geoportal.js"></script>
+</body>
+</html>
