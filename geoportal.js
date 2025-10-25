@@ -220,19 +220,123 @@ function crearIcono(color = '#cccc00') {
     });
 }
 
-// Verificar si estación está en línea (por ddns o ip)
+// geportal.js - Reemplazar la función verificarEstado actual
+
+// Verificar si estación está en línea (primero por ddns, luego por ip como fallback)
 async function verificarEstado(estacion) {
-    const url = estacion.ddns || estacion.ip;
-    if (!url) return 'offline';
-    try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
-        clearTimeout(timeout);
-        return 'online';
-    } catch {
-        return 'offline';
+    const urls = [];
+    
+    // Agregar DDNS si está disponible
+    if (estacion.ddns) {
+        urls.push(estacion.ddns);
     }
+    
+    // Agregar IP si está disponible (como fallback)
+    if (estacion.ip) {
+        urls.push(estacion.ip);
+    }
+    
+    if (urls.length === 0) {
+        return 'offline'; // No hay URLs para verificar
+    }
+    
+    // Intentar cada URL en orden (primero DDNS, luego IP)
+    for (const url of urls) {
+        try {
+            console.log(`🔍 Verificando: ${url}`);
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 3000);
+            
+            // Usar fetch con modo 'no-cors' para evitar problemas CORS
+            const response = await fetch(url, { 
+                method: 'HEAD', 
+                mode: 'no-cors',
+                signal: controller.signal 
+            });
+            
+            clearTimeout(timeout);
+            console.log(`✅ Estación accesible via: ${url}`);
+            return 'online';
+            
+        } catch (error) {
+            console.log(`❌ Falló verificación via ${url}:`, error.message);
+            // Continuar con la siguiente URL
+            continue;
+        }
+    }
+    
+    // Si todas las verificaciones fallaron
+    return 'offline';
+}
+
+// También mejorar la función agregarMarcadores para mejor logging
+async function agregarMarcadores(data) {
+    // ... código existente hasta la verificación ...
+    
+    // Verificación en segundo plano - MEJORADO
+    let verificacionesCompletadas = 0;
+    let estacionesOnline = 0;
+    let estacionesOffline = 0;
+    const totalVerificaciones = Object.keys(markers).length;
+    
+    Object.values(markers).forEach(marker => {
+        const estacion = marker.estacionData;
+        const estacionId = marker.estacionId;
+        const nombreEstacion = obtenerNombreEstacion(estacion);
+        
+        if (!estacion) return;
+        
+        console.log(`🔄 Verificando estado de: ${nombreEstacion}`);
+        
+        verificarEstado(estacion).then(estado => {
+            verificacionesCompletadas++;
+            
+            const color = estado === 'online' ? '#28a745' : '#dc3545';
+            marker.setIcon(crearIcono(color));
+            
+            // Contar estadísticas
+            if (estado === 'online') {
+                estacionesOnline++;
+                console.log(`✅ ${nombreEstacion} - EN LÍNEA`);
+            } else {
+                estacionesOffline++;
+                console.log(`❌ ${nombreEstacion} - FUERA DE LÍNEA`);
+            }
+            
+            // Actualizar estadísticas en el header
+            actualizarEstadisticasEstado(estacionesOnline, estacionesOffline);
+            
+            // Guardar el estado en el marcador
+            marker.estadoVerificado = estado;
+            
+            // Si el popup está abierto, actualizarlo inmediatamente
+            if (marker.isPopupOpen()) {
+                marker.setPopupContent(marker.generarPopupContent(estado));
+            }
+            
+            console.log(`📊 Progreso: ${verificacionesCompletadas}/${totalVerificaciones} - Online: ${estacionesOnline}, Offline: ${estacionesOffline}`);
+            
+        }).catch((error) => {
+            verificacionesCompletadas++;
+            estacionesOffline++;
+            
+            console.error(`💥 Error verificando ${nombreEstacion}:`, error);
+            
+            // Actualizar estadísticas en el header
+            actualizarEstadisticasEstado(estacionesOnline, estacionesOffline);
+            
+            // En caso de error, marcar como offline
+            marker.setIcon(crearIcono('#dc3545'));
+            marker.estadoVerificado = 'offline';
+            
+            // Si el popup está abierto, actualizarlo inmediatamente
+            if (marker.isPopupOpen()) {
+                marker.setPopupContent(marker.generarPopupContent('offline'));
+            }
+        });
+    });
+
+    // ... resto del código existente ...
 }
 
 // Función para obtener el nombre de la estación
