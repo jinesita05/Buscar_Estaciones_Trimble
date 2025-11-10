@@ -3,109 +3,350 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Estaciones CORS Trimble - República Dominicana</title>
+    <title>Dashboard CORS Trimble - Monitoreo en Tiempo Real</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="geoportal.css">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div class="header-content">
-                <h1>📡 ESTACIONES DE REFERENCIA DE OPERACIÓN CONTINUA</h1>
-                <p>Red de Estaciones CORS GNSS - República Dominicana</p>
+        <!-- HEADER PRINCIPAL -->
+        <div class="dashboard-header">
+            <div class="header-brand">
+                <div class="logo">
+                    <div class="trimble-logo">
+                        <span>TRIMBLE</span>
+                    </div>
+                </div>
+                <div class="header-title">
+                    <h1><i class="fas fa-tachometer-alt"></i> DASHBOARD CORS TRIMBLE</h1>
+                    <p>Monitoreo en Tiempo Real - Red GNSS República Dominicana</p>
+                </div>
             </div>
-            <div class="logo-container">
-                <div class="trimble-logo">
-                    <svg viewBox="0 0 200 50" xmlns="http://www.w3.org/2000/svg">
-                        <text x="10" y="35" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#1a5490">TRIMBLE</text>
-                    </svg>
+            <div class="header-controls">
+                <div class="time-display">
+                    <i class="fas fa-clock"></i>
+                    <span id="current-time">--:--:--</span>
+                </div>
+                <button class="btn-refresh-all" onclick="actualizarDashboardCompleto()">
+                    <i class="fas fa-sync-alt"></i> Actualizar Todo
+                </button>
+            </div>
+        </div>
+
+        <!-- PANEL DE KPI PRINCIPALES -->
+        <div class="kpi-dashboard">
+            <!-- KPI 1: Estado General -->
+            <div class="kpi-card main-kpi">
+                <div class="kpi-icon">
+                    <i class="fas fa-network-wired"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>ESTADO GENERAL DE LA RED</h3>
+                    <div class="kpi-value" id="kpi-uptime">100%</div>
+                    <div class="kpi-label">Disponibilidad</div>
+                    <div class="kpi-trend positive">
+                        <i class="fas fa-arrow-up"></i> 2.5% vs ayer
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI 2: Estaciones Online -->
+            <div class="kpi-card success">
+                <div class="kpi-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>ESTACIONES ONLINE</h3>
+                    <div class="kpi-value" id="kpi-online">0</div>
+                    <div class="kpi-label">Operativas</div>
+                    <div class="kpi-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="online-progress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI 3: Estaciones Offline -->
+            <div class="kpi-card danger">
+                <div class="kpi-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>ESTACIONES OFFLINE</h3>
+                    <div class="kpi-value" id="kpi-offline">0</div>
+                    <div class="kpi-label">Requieren Atención</div>
+                    <div class="kpi-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill offline" id="offline-progress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI 4: Tiempo Respuesta Promedio -->
+            <div class="kpi-card warning">
+                <div class="kpi-icon">
+                    <i class="fas fa-stopwatch"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>TIEMPO RESPUESTA</h3>
+                    <div class="kpi-value" id="kpi-response">0ms</div>
+                    <div class="kpi-label">Promedio</div>
+                    <div class="kpi-trend negative">
+                        <i class="fas fa-arrow-down"></i> 15ms vs ayer
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI 5: Ancho de Banda -->
+            <div class="kpi-card info">
+                <div class="kpi-icon">
+                    <i class="fas fa-signal"></i>
+                </div>
+                <div class="kpi-content">
+                    <h3>TRÁFICO RED</h3>
+                    <div class="kpi-value" id="kpi-traffic">0 MB/s</div>
+                    <div class="kpi-label">Consumo Actual</div>
+                    <div class="kpi-trend positive">
+                        <i class="fas fa-arrow-up"></i> Estable
+                    </div>
                 </div>
             </div>
         </div>
-        <div id="stats" class="stats"></div>
-        <div class="content-wrapper">
-            <div class="sidebar">
-                <!-- Panel de búsqueda -->
-                <div class="search-panel">
-                    <h2>🔍 Buscar Estaciones</h2>
-                    <div class="search-group">
-                        <label>Provincia</label>
-                        <select id="provinciaSelect">
-                            <option value="">Todas las provincias</option>
-                        </select>
+
+        <!-- PANEL DE GRÁFICOS Y MAPA -->
+        <div class="main-dashboard">
+            <!-- COLUMNA IZQUIERDA: GRÁFICOS -->
+            <div class="charts-column">
+                <!-- Gráfico 1: Estado por Provincia -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fas fa-chart-pie"></i> ESTADO POR PROVINCIA</h3>
+                        <div class="chart-actions">
+                            <button class="btn-chart-action" onclick="toggleChartView('provincia')">
+                                <i class="fas fa-exchange-alt"></i>
+                            </button>
+                        </div>
                     </div>
-                    <div class="search-group">
-                        <label>Nombre de Estación</label>
-                        <input type="text" id="nombreInput" placeholder="Buscar por nombre...">
+                    <div class="chart-container">
+                        <canvas id="chartProvincia"></canvas>
                     </div>
-                    <button class="btn-search" onclick="filtrarEstaciones()">Buscar</button>
-                    <button class="btn-clear" onclick="limpiarFiltros()">Limpiar Filtros</button>
                 </div>
-                
-                <!-- Panel de medición -->
-                <div class="measurement-panel">
-                    <h2>📏 Herramienta de Medición</h2>
-                    
-                    <!-- Modo de medición por clicks -->
-                    <div class="measurement-section">
-                        <h3>Medir en el Mapa</h3>
-                        <button id="btnToggleMeasure" class="btn-measure">📏 Medir Distancia</button>
-                        <button id="btnClearMeasure" class="btn-clear-measure">🗑️ Limpiar Mediciones</button>
-                        <div id="resultadoDistancia" style="margin-top: 15px;"></div>
+
+                <!-- Gráfico 2: Tendencia de Disponibilidad -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fas fa-chart-line"></i> TENDENCIA DISPONIBILIDAD (24H)</h3>
+                        <div class="chart-actions">
+                            <select id="timeRange" onchange="actualizarTendencia()">
+                                <option value="24h">24 Horas</option>
+                                <option value="7d">7 Días</option>
+                                <option value="30d">30 Días</option>
+                            </select>
+                        </div>
                     </div>
-                    
-                    <!-- Modo de medición por coordenadas -->
-                    <div class="measurement-section" style="margin-top: 20px;">
-                        <h3>Medir por Coordenadas</h3>
-                        <div class="coord-group">
-                            <label>Punto 1:</label>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="number" id="lat1" placeholder="Latitud" step="0.000001" style="flex: 1;">
-                                <input type="number" id="lon1" placeholder="Longitud" step="0.000001" style="flex: 1;">
+                    <div class="chart-container">
+                        <canvas id="chartTendencia"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico 3: Alertas Recientes -->
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3><i class="fas fa-bell"></i> ALERTAS RECIENTES</h3>
+                        <div class="chart-actions">
+                            <span class="alert-badge" id="alert-count">0</span>
+                        </div>
+                    </div>
+                    <div class="alerts-container" id="alerts-list">
+                        <div class="alert-item info">
+                            <i class="fas fa-info-circle"></i>
+                            <div class="alert-content">
+                                <div class="alert-title">Sistema Iniciado</div>
+                                <div class="alert-time">Hace 2 minutos</div>
                             </div>
                         </div>
-                        <div class="coord-group" style="margin-top: 10px;">
-                            <label>Punto 2:</label>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="number" id="lat2" placeholder="Latitud" step="0.000001" style="flex: 1;">
-                                <input type="number" id="lon2" placeholder="Longitud" step="0.000001" style="flex: 1;">
-                            </div>
-                        </div>
-                        <button id="btnMeasureCoords" class="btn-measure-coords">🎯 Calcular Distancia</button>
-                    </div>
-                </div>
-                
-                <!-- Info de provincia (opcional) -->
-                <div class="provincia-info" id="provinciaInfo">
-                    <h3 id="provinciaNombre"></h3>
-                    <p id="provinciaEstaciones"></p>
-                </div>
-                
-                <!-- Lista de estaciones -->
-                <div class="stations-list" id="stationsList">
-                    <div style="text-align: center; padding: 20px; color: #666;">
-                        Cargando estaciones...
                     </div>
                 </div>
             </div>
-            
-            <div class="map-container">
-                <div id="loading" class="loading-overlay">⏳ Cargando estaciones CORS...</div>
-                <div id="map"></div>
-                <div id="reportPanel" class="report-panel">
-                    <div class="report-header">
-                        <h2>📊 Reporte de Estación</h2>
-                        <button class="btn-close" onclick="cerrarReporte()">✕</button>
+
+            <!-- COLUMNA CENTRAL: MAPA -->
+            <div class="map-column">
+                <div class="map-card">
+                    <div class="map-header">
+                        <h3><i class="fas fa-map-marked-alt"></i> VISTA GENERAL DE ESTACIONES</h3>
+                        <div class="map-controls">
+                            <button class="btn-map-control" onclick="toggleEstacionesOffline()">
+                                <i class="fas fa-eye"></i> Offline
+                            </button>
+                            <button class="btn-map-control" onclick="exportarReporte()">
+                                <i class="fas fa-download"></i> Reporte
+                            </button>
+                        </div>
                     </div>
-                    <div class="report-content" id="reportContent"></div>
+                    <div class="map-container">
+                        <div id="loading" class="loading-overlay">
+                            <div class="loading-content">
+                                <div class="dashboard-spinner"></div>
+                                <h3>Inicializando Dashboard</h3>
+                                <p>Cargando métricas en tiempo real...</p>
+                            </div>
+                        </div>
+                        <div id="map"></div>
+                    </div>
+                    <div class="map-stats">
+                        <div class="map-stat">
+                            <span class="stat-label">Total Estaciones:</span>
+                            <span class="stat-value" id="map-total">0</span>
+                        </div>
+                        <div class="map-stat">
+                            <span class="stat-label">Visibles:</span>
+                            <span class="stat-value" id="map-visible">0</span>
+                        </div>
+                        <div class="map-stat">
+                            <span class="stat-label">Última Actualización:</span>
+                            <span class="stat-value" id="map-update">--:--:--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLUMNA DERECHA: DATOS EN TIEMPO REAL -->
+            <div class="data-column">
+                <!-- Panel: Estaciones Críticas -->
+                <div class="data-card critical">
+                    <div class="data-header">
+                        <h3><i class="fas fa-exclamation-triangle"></i> ESTACIONES CRÍTICAS</h3>
+                        <span class="critical-count" id="critical-count">0</span>
+                    </div>
+                    <div class="data-content" id="critical-stations">
+                        <div class="no-data">Todas las estaciones operativas</div>
+                    </div>
+                </div>
+
+                <!-- Panel: Rendimiento por Red -->
+                <div class="data-card">
+                    <div class="data-header">
+                        <h3><i class="fas fa-chart-bar"></i> RENDIMIENTO POR RED</h3>
+                    </div>
+                    <div class="data-content" id="network-performance">
+                        <div class="performance-item">
+                            <div class="performance-label">Red Principal</div>
+                            <div class="performance-value">98.2%</div>
+                            <div class="performance-bar">
+                                <div class="performance-fill" style="width: 98.2%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel: Métricas en Tiempo Real -->
+                <div class="data-card">
+                    <div class="data-header">
+                        <h3><i class="fas fa-heartbeat"></i> MÉTRICAS EN TIEMPO REAL</h3>
+                    </div>
+                    <div class="data-content">
+                        <div class="metric-item">
+                            <div class="metric-label">Latencia Promedio</div>
+                            <div class="metric-value" id="metric-latency">0ms</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Peticiones/min</div>
+                            <div class="metric-value" id="metric-requests">0</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Uso CPU</div>
+                            <div class="metric-value" id="metric-cpu">0%</div>
+                        </div>
+                        <div class="metric-item">
+                            <div class="metric-label">Memoria</div>
+                            <div class="metric-value" id="metric-memory">0%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Panel: Acciones Rápidas -->
+                <div class="data-card actions">
+                    <div class="data-header">
+                        <h3><i class="fas fa-bolt"></i> ACCIONES RÁPIDAS</h3>
+                    </div>
+                    <div class="data-content">
+                        <button class="btn-quick-action" onclick="verificarTodasEstaciones()">
+                            <i class="fas fa-sync"></i> Verificar Estado
+                        </button>
+                        <button class="btn-quick-action" onclick="generarReporteDiario()">
+                            <i class="fas fa-file-pdf"></i> Reporte Diario
+                        </button>
+                        <button class="btn-quick-action" onclick="mostrarConfiguracion()">
+                            <i class="fas fa-cog"></i> Configuración
+                        </button>
+                        <button class="btn-quick-action warning" onclick="simularAlerta()">
+                            <i class="fas fa-bell"></i> Simular Alerta
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOOTER DEL DASHBOARD -->
+        <div class="dashboard-footer">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <span><i class="fas fa-shield-alt"></i> Sistema de Monitoreo CORS v2.0</span>
+                </div>
+                <div class="footer-section">
+                    <span id="system-status"><i class="fas fa-circle"></i> Conectado</span>
+                    <span id="data-count">Estaciones: 0</span>
+                </div>
+                <div class="footer-section">
+                    <span id="api-status"><i class="fas fa-api"></i> API: Online</span>
+                    <span id="update-frequency">Actualización: 30s</span>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- MODAL DE CONFIGURACIÓN -->
+    <div id="configModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> Configuración del Dashboard</h3>
+                <button class="btn-close" onclick="cerrarModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="config-section">
+                    <h4>Intervalo de Actualización</h4>
+                    <select id="updateInterval">
+                        <option value="10000">10 segundos</option>
+                        <option value="30000" selected>30 segundos</option>
+                        <option value="60000">1 minuto</option>
+                        <option value="300000">5 minutos</option>
+                    </select>
+                </div>
+                <div class="config-section">
+                    <h4>Umbral de Alertas</h4>
+                    <input type="number" id="alertThreshold" value="95" min="80" max="100"> %
+                </div>
+                <div class="config-section">
+                    <h4>Métricas a Mostrar</h4>
+                    <label><input type="checkbox" checked> Latencia</label>
+                    <label><input type="checkbox" checked> Disponibilidad</label>
+                    <label><input type="checkbox" checked> Tráfico de Red</label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="cerrarModal()">Cancelar</button>
+                <button class="btn-primary" onclick="guardarConfiguracion()">Guardar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="geoportal.js"></script>
 </body>
 </html>
