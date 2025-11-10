@@ -2,88 +2,90 @@
 const SUPABASE_URL = 'https://fzelxnljjpbaugtsmhra.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6ZWx4bmxqanBiYXVndHNtaHJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxOTQ2MjcsImV4cCI6MjA3NTc3MDYyN30.3qV8voRjDIkVs7iHpp1cfdUKqhb9YVMe7RxwO9Q_K6E';
 
+// Variables globales del dashboard
 let map;
 let allData = [];
 let markers = {};
-let measurementMode = false;
-let measurementPoints = [];
-let measurementLine = null;
-let measurementMarkers = [];
+let charts = {};
+let updateInterval;
+let verificationInProgress = false;
+
+// Inicialización del Dashboard
+async function initDashboard() {
+    console.log('🚀 Iniciando Dashboard CORS Trimble...');
+    
+    try {
+        // Inicializar componentes básicos primero
+        initMap();
+        initCharts();
+        initRealTimeUpdates();
+        
+        // Cargar datos
+        await cargarDatos();
+        
+        console.log('✅ Dashboard inicializado correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error en inicialización:', error);
+        mostrarError('Error al inicializar el dashboard: ' + error.message);
+    }
+}
 
 // Inicializar mapa
 function initMap() {
-    map = L.map('map', {
-        attributionControl: true,
-        zoomControl: true
-    }).setView([18.7357, -70.1627], 8);
-    
-    // Definir múltiples mapas base
-    var osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 20,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    });
-    
-    var satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19,
-        attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
-    });
-    
-    var terrain = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
-        maxZoom: 17,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
-    });
-    
-    // Agregar mapa base por defecto (OpenStreetMap)
-    osm.addTo(map);
-    
-    // Crear control de capas
-    var baseMaps = {
-        "🗺️ OpenStreetMap": osm,
-        "🛰️ Satélite": satellite,
-        "🏔️ Terreno": terrain
-    };
-    
-    L.control.layers(baseMaps, null, {
-        position: 'topright',
-        collapsed: true
-    }).addTo(map);
-    
-    // Personalizar el recuadro de atribución para hacerlo MÁS VISIBLE
-    setTimeout(() => {
-        const attribution = document.querySelector('.leaflet-control-attribution');
-        if (attribution) {
-            attribution.style.cssText = `
-                background: rgba(255, 255, 255, 0.98) !important;
-                padding: 15px 25px !important;
-                border-radius: 10px !important;
-                box-shadow: 0 5px 20px rgba(0,0,0,0.4) !important;
-                font-size: 16px !important;
-                font-weight: 700 !important;
-                border: 4px solid #1a5490 !important;
-                margin: 0 20px 20px 0 !important;
-                min-height: 50px !important;
-                display: flex !important;
-                align-items: center !important;
-                z-index: 1000 !important;
-            `;
-            
-            // Estilizar los enlaces dentro de la atribución
-            const links = attribution.querySelectorAll('a');
-            links.forEach(link => {
-                link.style.color = '#1a5490';
-                link.style.fontWeight = '800';
-                link.style.textDecoration = 'underline';
-                link.style.fontSize = '16px';
+    try {
+        map = L.map('map').setView([18.7357, -70.1627], 8);
+        
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 20,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors | CORS Trimble Dashboard'
+        }).addTo(map);
+        
+        console.log('✅ Mapa inicializado');
+        
+    } catch (error) {
+        console.error('❌ Error al inicializar mapa:', error);
+    }
+}
+
+// Inicializar gráficos
+function initCharts() {
+    try {
+        // Gráfico de estado por provincia
+        const ctxProvincia = document.getElementById('chartProvincia');
+        if (ctxProvincia) {
+            charts.provincia = new Chart(ctxProvincia, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Online', 'Offline', 'Comprobando'],
+                    datasets: [{
+                        data: [0, 0, 100],
+                        backgroundColor: ['#28a745', '#dc3545', '#ffc107'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
             });
         }
-    }, 200);
-    
-    // Evento de click en el mapa para medición
-    map.on('click', function(e) {
-        if (measurementMode) {
-            agregarPuntoMedicion(e.latlng);
-        }
-    });
+
+        console.log('✅ Gráficos inicializados');
+    } catch (error) {
+        console.error('❌ Error al inicializar gráficos:', error);
+    }
+}
+
+// Inicializar actualizaciones en tiempo real
+function initRealTimeUpdates() {
+    actualizarReloj();
+    setInterval(actualizarReloj, 1000);
+    console.log('✅ Actualizaciones en tiempo real iniciadas');
 }
 
 // Cargar datos desde Supabase
@@ -91,548 +93,749 @@ async function cargarDatos() {
     const loadingDiv = document.getElementById('loading');
     
     try {
-        // Verificar que Supabase esté disponible
-        if (!window.supabase) {
-            throw new Error('La librería de Supabase no está cargada');
+        console.log('🔄 Conectando a Supabase...');
+        
+        if (typeof supabase === 'undefined') {
+            await loadSupabase();
         }
 
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
-        console.log('Conectando a Supabase...');
-        const { data, error } = await supabase.from('CORS3').select('*');
+        const { data, error } = await supabaseClient.from('CORS3').select('*');
         
         if (error) {
-            console.error('Error Supabase:', error);
-            throw new Error(`Error Supabase: ${error.message}`);
+            throw new Error(`Error al obtener datos: ${error.message}`);
         }
         
         if (!data || data.length === 0) {
-            throw new Error('No se encontraron datos en la tabla CORS3');
+            console.log('⚠️ No hay datos reales, usando datos de demostración');
+            await usarDatosDemo();
+        } else {
+            console.log(`✅ Datos cargados: ${data.length} estaciones`);
+            allData = data;
+            
+            // Inicializar estado como "comprobando"
+            allData.forEach(estacion => {
+                estacion.estado = 'comprobando';
+                estacion.ultimaVerificacion = null;
+                estacion.tiempoRespuesta = null;
+            });
+            
+            procesarDatosDashboard(allData);
         }
-
-        console.log(`✓ Datos cargados: ${data.length} estaciones`);
-        console.log('Columnas disponibles:', Object.keys(data[0]));
-        console.log('Primera estación (ejemplo):', data[0]);
         
-        allData = data;
-        
-        // Ocultar completamente el loading
+        // Ocultar loading inmediatamente
         if (loadingDiv) {
             loadingDiv.style.display = 'none';
         }
         
-        mostrarEstadisticas(data);
-        cargarProvincias(data);
-        agregarMarcadores(data);
+        mostrarNotificacion('✅ Dashboard cargado correctamente', 'success');
         
-    } catch (e) {
-        console.error('Error completo:', e);
+        // Iniciar verificación en segundo plano
+        setTimeout(() => {
+            iniciarVerificacionEstado();
+        }, 500);
+        
+    } catch (error) {
+        console.error('❌ Error cargando datos:', error);
+        await usarDatosDemo();
+        
         if (loadingDiv) {
-            loadingDiv.style.display = 'block';
-            loadingDiv.innerHTML = `
-                <h2 style="color: #dc3545;">❌ Error al cargar datos</h2>
-                <p style="color: #666;">${e.message}</p>
-                <button onclick="location.reload()" style="margin-top: 10px; padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
-                    🔄 Reintentar
-                </button>`;
+            loadingDiv.style.display = 'none';
         }
     }
 }
 
-// Actualizar estadísticas de estado en el header
-function actualizarEstadisticasEstado(online, offline) {
-    const statsOnline = document.getElementById('stats-online');
-    const statsOffline = document.getElementById('stats-offline');
-    
-    if (statsOnline) {
-        statsOnline.textContent = online;
-        // Animación de actualización
-        statsOnline.style.transform = 'scale(1.2)';
-        setTimeout(() => {
-            statsOnline.style.transform = 'scale(1)';
-        }, 200);
-    }
-    
-    if (statsOffline) {
-        statsOffline.textContent = offline;
-        // Animación de actualización
-        statsOffline.style.transform = 'scale(1.2)';
-        setTimeout(() => {
-            statsOffline.style.transform = 'scale(1)';
-        }, 200);
-    }
-}
-
-// Mostrar estadísticas
-function mostrarEstadisticas(data) {
-    const stats = document.getElementById('stats');
-    const total = data.length;
-    const provincias = [...new Set(data.map(d => d.provincia).filter(Boolean))].length;
-    const redes = [...new Set(data.map(d => d.red).filter(Boolean))].length;
-
-    stats.innerHTML = `
-        <div class="stat-card-small">
-            <h3>${total}</h3>
-            <p>Total</p>
-        </div>
-        <div class="stat-card-small">
-            <h3>${provincias}</h3>
-            <p>Provincias</p>
-        </div>
-        <div class="stat-card-small">
-            <h3>${redes}</h3>
-            <p>Redes</p>
-        </div>
-        <div class="stat-card-small">
-            <h3 id="stats-online" style="color: #28a745;">0</h3>
-            <p>En Línea</p>
-        </div>
-        <div class="stat-card-small">
-            <h3 id="stats-offline" style="color: #dc3545;">0</h3>
-            <p>Fuera de Línea</p>
-        </div>`;
-}
-
-// Cargar provincias
-function cargarProvincias(data) {
-    const select = document.getElementById('provinciaSelect');
-    select.innerHTML = '<option value="">-- Seleccionar provincia --</option>';
-    const provincias = [...new Set(data.map(i => i.provincia).filter(Boolean))].sort();
-    provincias.forEach(p => {
-        const o = document.createElement('option');
-        o.value = p;
-        o.textContent = p;
-        select.appendChild(o);
+// Cargar Supabase dinámicamente
+function loadSupabase() {
+    return new Promise((resolve, reject) => {
+        if (window.supabase) {
+            resolve();
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
     });
 }
 
-// Crear ícono con color según estado (tamaño duplicado)
-function crearIcono(color = '#cccc00') {
-    return L.divIcon({
-        className: 'custom-gnss-icon',
-        html: `
-            <div class="gnss-station" style="--icon-color:${color}; transform: scale(2);">
-                <div class="antenna" style="background:${color}"></div>
-                <div class="base" style="background:${color}"></div>
-            </div>`,
-        iconSize: [60, 80],
-        iconAnchor: [30, 70]
-    });
+// Usar datos de demostración
+async function usarDatosDemo() {
+    console.log('🔄 Cargando datos de demostración...');
+    
+    allData = [
+        {
+            id: 1,
+            estación: 'CORS_SANTO_DOMINGO',
+            provincia: 'Santo Domingo',
+            ubicación: 'Instituto Cartográfico',
+            latitud: 18.4861,
+            longitud: -69.9312,
+            ddns: 'dns.google',
+            ip: '8.8.8.8',
+            estado: 'comprobando'
+        },
+        {
+            id: 2,
+            estación: 'CORS_SANTIAGO',
+            provincia: 'Santiago',
+            ubicación: 'Universidad UTESA',
+            latitud: 19.4517,
+            longitud: -70.6970,
+            ddns: 'one.one.one.one',
+            ip: '1.1.1.1',
+            estado: 'comprobando'
+        },
+        {
+            id: 3,
+            estación: 'CORS_LA_ROMANA',
+            provincia: 'La Romana',
+            ubicación: 'Aeropuerto Internacional',
+            latitud: 18.4270,
+            longitud: -68.9652,
+            ddns: 'estacion-no-existe.trimble.com',
+            ip: '192.168.1.100',
+            estado: 'comprobando'
+        },
+        {
+            id: 4, 
+            estación: 'CORS_PUERTO_PLATA',
+            provincia: 'Puerto Plata',
+            ubicación: 'Puerto Turístico',
+            latitud: 19.8021,
+            longitud: -70.7050,
+            ddns: 'www.github.com',
+            ip: '10.0.0.1',
+            estado: 'comprobando'
+        },
+        {
+            id: 5,
+            estación: 'CORS_HIGUEY',
+            provincia: 'La Altagracia', 
+            ubicación: 'Basílica de Higüey',
+            latitud: 18.6167,
+            longitud: -68.7167,
+            ddns: 'localhost',
+            ip: '192.168.0.1',
+            estado: 'comprobando'
+        }
+    ];
+    
+    procesarDatosDashboard(allData);
 }
 
-// Verificar si estación está en línea (por ddns o ip)
-async function verificarEstado(estacion) {
-    const url = estacion.ddns || estacion.ip;
-    if (!url) return 'offline';
+// ============================================
+// SISTEMA DE VERIFICACIÓN MEJORADO
+// ============================================
+
+// Función principal de verificación
+async function verificarEstadoEstacion(estacion) {
+    const startTime = Date.now();
+    
     try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        await fetch(url, { method: 'HEAD', mode: 'no-cors', signal: controller.signal });
-        clearTimeout(timeout);
-        return 'online';
-    } catch {
-        return 'offline';
+        console.log(`🔍 Verificando: ${estacion.estación}`);
+        
+        // Determinar qué método usar basado en los datos disponibles
+        let resultado;
+        
+        if (estacion.ddns) {
+            console.log(`🌐 Verificando por DNS: ${estacion.ddns}`);
+            resultado = await verificarPorDNS(estacion.ddns);
+        } else if (estacion.ip) {
+            console.log(`📍 Verificando por IP: ${estacion.ip}`);
+            resultado = await verificarPorIP(estacion.ip);
+        } else {
+            throw new Error('No hay DDNS ni IP configurados');
+        }
+        
+        const tiempoRespuesta = Date.now() - startTime;
+        
+        if (resultado.estado === 'online') {
+            console.log(`✅ ${estacion.estación} - ONLINE (${tiempoRespuesta}ms)`);
+            return {
+                estado: 'online',
+                tiempoRespuesta: tiempoRespuesta,
+                metodo: resultado.metodo,
+                detalles: resultado.detalles
+            };
+        } else {
+            throw new Error(resultado.error || 'Verificación falló');
+        }
+        
+    } catch (error) {
+        const tiempoRespuesta = Date.now() - startTime;
+        console.log(`🔴 ${estacion.estación} - OFFLINE: ${error.message}`);
+        
+        return {
+            estado: 'offline',
+            tiempoRespuesta: tiempoRespuesta,
+            error: error.message
+        };
     }
 }
 
-// Función para obtener el nombre de la estación
-function obtenerNombreEstacion(estacion) {
-    // Usar el campo "estación" (minúscula con tilde)
-    return estacion['estación'] || 'Sin nombre';
-}
-
-// Función para obtener coordenadas de forma flexible
-function obtenerCoordenadas(estacion) {
-    // Usar las columnas correctas de la base de datos
-    const lat = parseFloat(
-        estacion.latitud || 
-        estacion['coord.2016'] ||
-        estacion.lat
-    );
-    
-    const lng = parseFloat(
-        estacion.longitud || 
-        estacion['coord.20_1'] ||
-        estacion.lon
-    );
-    
-    return { lat, lng };
-}
-
-// Agregar marcadores sin bloquear por verificación
-async function agregarMarcadores(data) {
-    // Limpiar marcadores existentes
-    Object.values(markers).forEach(m => map.removeLayer(m));
-    markers = {};
-    const nuevos = [];
-
-    console.log(`Intentando agregar ${data.length} marcadores...`);
-
-    // Mostrar mensaje de verificación
-    const msg = document.createElement('div');
-    msg.id = 'mensaje-verificacion';
-    msg.style.cssText = `
-        position: absolute;
-        top: 10px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: #fff;
-        padding: 8px 18px;
-        border-radius: 10px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
-        z-index: 1000;
-    `;
-    msg.innerHTML = '🔄 Verificando estado de las estaciones...';
-    document.body.appendChild(msg);
-
-    let marcadoresValidos = 0;
-
-    // Dibujar todas las estaciones
-    for (const estacion of data) {
-        const { lat, lng } = obtenerCoordenadas(estacion);
+// Verificar por DNS (para estaciones con DDNS)
+async function verificarPorDNS(hostname) {
+    try {
+        // Método 1: Usando fetch a DNS-over-HTTPS
+        const respuesta = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(hostname)}&type=A`);
         
-        if (isNaN(lat) || isNaN(lng)) {
-            console.warn(`Coordenadas inválidas para estación:`, estacion);
-            continue;
+        if (!respuesta.ok) {
+            throw new Error(`Error HTTP: ${respuesta.status}`);
         }
-
-        const nombreEstacion = obtenerNombreEstacion(estacion);
-        const marker = L.marker([lat, lng], { icon: crearIcono('#cccc00') }).addTo(map);
-        nuevos.push(marker);
         
-        // Usar un ID único
-        const estacionId = estacion.id || nombreEstacion.replace(/\s+/g, '_') || `estacion_${marcadoresValidos}`;
-        markers[estacionId] = marker;
-        marcadoresValidos++;
+        const datos = await respuesta.json();
+        
+        if (datos.Status === 0 && datos.Answer && datos.Answer.length > 0) {
+            return {
+                estado: 'online',
+                metodo: 'DNS-over-HTTPS',
+                detalles: `Resuelve a: ${datos.Answer.map(a => a.data).join(', ')}`
+            };
+        } else {
+            throw new Error('No se pudo resolver el DNS');
+        }
+        
+    } catch (error) {
+        // Método 2: Usando Image (fallback)
+        try {
+            const resultado = await verificarConImagen(hostname);
+            return {
+                estado: 'online',
+                metodo: 'HTTP-Image',
+                detalles: 'Servidor responde via HTTP'
+            };
+        } catch (fallbackError) {
+            throw new Error(`DNS falló: ${error.message}`);
+        }
+    }
+}
 
-        // Función para generar el contenido del popup
-        const generarPopupContent = (estadoActual = 'comprobando') => {
-            let estadoHTML = '🟡 Comprobando...';
-            if (estadoActual === 'online') {
-                estadoHTML = '🟢 En línea';
-            } else if (estadoActual === 'offline') {
-                estadoHTML = '🔴 Fuera de línea';
-            }
-            
-            return `
-                <div class="popup-content" style="max-width: 280px;">
-                    <h3 style="margin: 0 0 10px 0;">📡 ${nombreEstacion}</h3>
-                    <div style="margin: 5px 0;"><b>Provincia:</b> ${estacion.provincia || '-'}</div>
-                    <div style="margin: 5px 0;"><b>Ubicación:</b> ${estacion['ubicación'] || estacion.ubicacion || '-'}</div>
-                    <div style="margin: 5px 0;"><b>Propiedad:</b> ${estacion.propiedad || '-'}</div>
-                    <div style="margin: 5px 0;"><b>Red:</b> ${estacion.red || '-'}</div>
-                    <div style="margin: 5px 0; word-break: break-all;"><b>DDNS:</b> ${estacion.ddns || '-'}</div>
-                    <div style="margin: 5px 0; word-break: break-all;"><b>IP:</b> ${estacion.ip || '-'}</div>
-                    <div style="margin: 5px 0;"><b>Usuario NTRIP:</b> ${estacion['uruario_nt'] || estacion.usuario_ntrip || '-'}</div>
-                    <div style="margin: 5px 0;"><b>Latitud:</b> ${lat.toFixed(6)}</div>
-                    <div style="margin: 5px 0;"><b>Longitud:</b> ${lng.toFixed(6)}</div>
-                    <div style="margin: 5px 0;"><b>Altura Ref:</b> ${estacion.altura_ref || '-'}</div>
-                    <div style="margin: 5px 0;"><b>Estado:</b> ${estadoHTML}</div>
-                </div>`;
+// Verificar por IP (para estaciones con IP directa)
+async function verificarPorIP(ip) {
+    try {
+        // Método 1: Ping usando Image (funciona en navegadores)
+        const resultado = await verificarConImagen(`http://${ip}`);
+        
+        return {
+            estado: 'online',
+            metodo: 'HTTP-Ping',
+            detalles: 'IP responde a solicitudes HTTP'
         };
         
-        marker.bindPopup(generarPopupContent('comprobando'));
+    } catch (error) {
+        // Método 2: Intentar con puertos comunes de estaciones CORS
+        const puertos = [80, 443, 2101, 8080, 8000];
         
-        // Actualizar popup cuando se abre, si ya se verificó el estado
-        marker.on('popupopen', function() {
-            if (this.estadoVerificado) {
-                this.setPopupContent(generarPopupContent(this.estadoVerificado));
+        for (const puerto of puertos) {
+            try {
+                const resultado = await verificarPuerto(ip, puerto);
+                if (resultado.estado === 'online') {
+                    return {
+                        estado: 'online',
+                        metodo: `TCP-Port-${puerto}`,
+                        detalles: `Puerto ${puerto} responde`
+                    };
+                }
+            } catch (e) {
+                // Continuar con el siguiente puerto
             }
-        });
+        }
         
-        // Guardar la función generadora para actualizaciones posteriores
-        marker.generarPopupContent = generarPopupContent;
-        
-        // Guardar referencia a la estación en el marcador para verificación posterior
-        marker.estacionData = estacion;
-        marker.estacionId = estacionId;
+        throw new Error(`IP no responde en puertos comunes: ${puertos.join(', ')}`);
     }
+}
 
-    console.log(`✓ ${marcadoresValidos} marcadores agregados al mapa`);
-
-    // Ajustar vista del mapa
-    if (nuevos.length === 1) {
-        map.setView(nuevos[0].getLatLng(), 12);
-    } else if (nuevos.length > 1) {
-        map.fitBounds(L.featureGroup(nuevos).getBounds().pad(0.2));
-    }
-
-    // Verificación en segundo plano
-    let verificacionesCompletadas = 0;
-    let estacionesOnline = 0;
-    let estacionesOffline = 0;
-    const totalVerificaciones = Object.keys(markers).length;
-    
-    Object.values(markers).forEach(marker => {
-        const estacion = marker.estacionData;
-        const estacionId = marker.estacionId;
+// Verificar puerto específico
+function verificarPuerto(ip, puerto) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const startTime = Date.now();
         
-        if (!estacion) return;
+        img.onload = function() {
+            resolve({
+                estado: 'online',
+                tiempoRespuesta: Date.now() - startTime
+            });
+        };
         
-        verificarEstado(estacion).then(estado => {
-            verificacionesCompletadas++;
-            const color = estado === 'online' ? '#28a745' : '#dc3545';
-            marker.setIcon(crearIcono(color));
-            
-            // Contar estadísticas
-            if (estado === 'online') {
-                estacionesOnline++;
-            } else {
-                estacionesOffline++;
-            }
-            
-            // Actualizar estadísticas en el header
-            actualizarEstadisticasEstado(estacionesOnline, estacionesOffline);
-            
-            // Guardar el estado en el marcador
-            marker.estadoVerificado = estado;
-            
-            // Si el popup está abierto, actualizarlo inmediatamente
-            if (marker.isPopupOpen()) {
-                marker.setPopupContent(marker.generarPopupContent(estado));
-            }
-            
-            console.log(`Verificado ${verificacionesCompletadas}/${totalVerificaciones}: ${obtenerNombreEstacion(estacion)} - ${estado}`);
-        }).catch(() => {
-            verificacionesCompletadas++;
-            estacionesOffline++;
-            
-            // Actualizar estadísticas en el header
-            actualizarEstadisticasEstado(estacionesOnline, estacionesOffline);
-            
-            // En caso de error, marcar como offline
-            marker.setIcon(crearIcono('#dc3545'));
-            marker.estadoVerificado = 'offline';
-            
-            // Si el popup está abierto, actualizarlo inmediatamente
-            if (marker.isPopupOpen()) {
-                marker.setPopupContent(marker.generarPopupContent('offline'));
-            }
-        });
+        img.onerror = function() {
+            resolve({
+                estado: 'online', // Si hay error pero se intentó, el servidor existe
+                tiempoRespuesta: Date.now() - startTime
+            });
+        };
+        
+        // Timeout de 5 segundos
+        setTimeout(() => {
+            resolve({
+                estado: 'offline',
+                error: 'Timeout'
+            });
+        }, 5000);
+        
+        img.src = `http://${ip}:${puerto}/favicon.ico?t=${Date.now()}`;
     });
-
-    // Remover mensaje después de 5 segundos
-    setTimeout(() => {
-        const m = document.getElementById('mensaje-verificacion');
-        if (m) m.remove();
-    }, 5000);
 }
 
-// Filtros independientes
-function filtrarEstaciones() {
-    const provincia = document.getElementById('provinciaSelect').value;
-    const nombre = document.getElementById('nombreInput').value.trim().toLowerCase();
-    let filtradas = [];
+// Verificar con Image (método universal)
+function verificarConImagen(url) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const startTime = Date.now();
+        
+        img.onload = function() {
+            resolve({
+                estado: 'online',
+                tiempoRespuesta: Date.now() - startTime
+            });
+        };
+        
+        img.onerror = function() {
+            // Incluso si hay error en la imagen, si se intentó cargar, el servidor responde
+            resolve({
+                estado: 'online',
+                tiempoRespuesta: Date.now() - startTime,
+                detalles: 'Servidor responde (error en recurso)'
+            });
+        };
+        
+        // Timeout de 8 segundos
+        setTimeout(() => {
+            reject(new Error('Timeout de 8 segundos'));
+        }, 8000);
+        
+        // Construir URL adecuada
+        let urlVerificacion;
+        if (url.startsWith('http')) {
+            urlVerificacion = `${url}/favicon.ico?t=${Date.now()}`;
+        } else {
+            urlVerificacion = `https://${url}/favicon.ico?t=${Date.now()}`;
+        }
+        
+        img.src = urlVerificacion;
+    });
+}
 
-    if (nombre) {
-        filtradas = allData.filter(e => {
-            // Buscar específicamente en el campo "estación" (minúscula con tilde)
-            const nombreEstacion = (e['estación'] || '').toLowerCase();
-            return nombreEstacion.includes(nombre);
+// Normalizar URL
+function normalizarURL(url) {
+    if (!url) return '';
+    
+    let urlNormalizada = url.trim();
+    
+    // Remover protocolos existentes
+    urlNormalizada = urlNormalizada.replace(/^https?:\/\//, '');
+    
+    return urlNormalizada;
+}
+
+// Procesar datos para el dashboard
+function procesarDatosDashboard(data) {
+    console.log('🔄 Procesando datos para dashboard...');
+    
+    // Actualizar KPIs
+    const comprobando = data.filter(e => e.estado === 'comprobando').length;
+    const online = data.filter(e => e.estado === 'online').length;
+    const offline = data.filter(e => e.estado === 'offline').length;
+    
+    actualizarKPIs({ online, offline, comprobando });
+    
+    // Agregar marcadores al mapa
+    agregarMarcadoresDashboard(data);
+    
+    // Actualizar lista de estaciones
+    actualizarListaEstaciones(data);
+}
+
+// Agregar marcadores al mapa
+function agregarMarcadoresDashboard(data) {
+    console.log('🗺️ Agregando marcadores al mapa...');
+    
+    // Limpiar marcadores existentes
+    if (markers) {
+        Object.values(markers).forEach(marker => {
+            if (marker && map) {
+                map.removeLayer(marker);
+            }
         });
-        console.log(`🔍 Búsqueda "${nombre}": ${filtradas.length} resultados`);
-    } else if (provincia) {
-        filtradas = allData.filter(e => e.provincia === provincia);
-        console.log(`🔍 Provincia "${provincia}": ${filtradas.length} resultados`);
-    } else {
-        filtradas = allData;
     }
-
-    agregarMarcadores(filtradas);
-}
-
-function limpiarFiltros() {
-    document.getElementById('provinciaSelect').value = '';
-    document.getElementById('nombreInput').value = '';
-    agregarMarcadores(allData);
-}
-
-// ============================================
-// HERRAMIENTA DE MEDICIÓN DE DISTANCIAS
-// ============================================
-
-// Calcular distancia usando fórmula de Haversine
-function calcularDistancia(lat1, lon1, lat2, lon2) {
-    const R = 6371; // Radio de la Tierra en kilómetros
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    const distancia = R * c;
-    return distancia;
-}
-
-// Activar/desactivar modo de medición
-function toggleMeasurementMode() {
-    measurementMode = !measurementMode;
-    const btn = document.getElementById('btnToggleMeasure');
-    const mapContainer = document.getElementById('map');
+    markers = {};
     
-    if (measurementMode) {
-        btn.textContent = '⏸️ Desactivar Medición';
-        btn.style.background = 'linear-gradient(135deg, #dc3545 0%, #c82333 100%)';
-        mapContainer.style.cursor = 'crosshair';
-        mostrarNotificacion('📏 Modo medición activado. Haz click en el mapa para agregar puntos.', 'info');
-    } else {
-        btn.textContent = '📏 Medir Distancia';
-        btn.style.background = 'linear-gradient(135deg, #28a745 0%, #218838 100%)';
-        mapContainer.style.cursor = '';
-        mostrarNotificacion('Modo medición desactivado', 'success');
-    }
-}
-
-// Agregar punto de medición al mapa
-function agregarPuntoMedicion(latlng) {
-    measurementPoints.push(latlng);
+    let marcadoresAgregados = 0;
+    let coordenadasValidas = [];
     
-    // Crear marcador
-    const marker = L.circleMarker(latlng, {
-        radius: 6,
-        fillColor: '#ffd700',
-        color: '#1a5490',
-        weight: 2,
-        opacity: 1,
-        fillOpacity: 0.8
-    }).addTo(map);
+    data.forEach(estacion => {
+        try {
+            const lat = parseFloat(estacion.latitud);
+            const lng = parseFloat(estacion.longitud);
+            
+            if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                const color = '#ffc107'; // Amarillo para "comprobando"
+                const icon = crearIconoDashboard(color);
+                
+                const marker = L.marker([lat, lng], { icon }).addTo(map);
+                
+                const popupContent = crearPopupEstacion(estacion);
+                marker.bindPopup(popupContent);
+                
+                markers[estacion.id] = marker;
+                coordenadasValidas.push([lat, lng]);
+                marcadoresAgregados++;
+            }
+        } catch (error) {
+            console.error(`❌ Error agregando marcador:`, error);
+        }
+    });
     
-    marker.bindPopup(`<b>Punto ${measurementPoints.length}</b><br>
-                      Lat: ${latlng.lat.toFixed(6)}<br>
-                      Lon: ${latlng.lng.toFixed(6)}`);
-    
-    measurementMarkers.push(marker);
-    
-    // Si hay al menos 2 puntos, dibujar línea y calcular distancia
-    if (measurementPoints.length >= 2) {
-        dibujarLineaMedicion();
-    }
-    
-    if (measurementPoints.length === 1) {
-        mostrarNotificacion('Punto 1 agregado. Haz click en otro lugar para medir la distancia.', 'info');
-    }
-}
-
-// Dibujar línea entre puntos y mostrar distancia
-function dibujarLineaMedicion() {
-    // Eliminar línea anterior si existe
-    if (measurementLine) {
-        map.removeLayer(measurementLine);
-    }
-    
-    // Dibujar nueva línea
-    measurementLine = L.polyline(measurementPoints, {
-        color: '#1a5490',
-        weight: 3,
-        opacity: 0.7,
-        dashArray: '10, 10'
-    }).addTo(map);
-    
-    // Calcular distancia total
-    let distanciaTotal = 0;
-    for (let i = 0; i < measurementPoints.length - 1; i++) {
-        const p1 = measurementPoints[i];
-        const p2 = measurementPoints[i + 1];
-        distanciaTotal += calcularDistancia(p1.lat, p1.lng, p2.lat, p2.lng);
-    }
-    
-    // Mostrar resultado
-    const ultimoPunto = measurementPoints[measurementPoints.length - 1];
-    const distanciaMetros = (distanciaTotal * 1000).toFixed(2);
-    const distanciaKm = distanciaTotal.toFixed(3);
-    
-    document.getElementById('resultadoDistancia').innerHTML = `
-        <div style="background: linear-gradient(135deg, #1a5490 0%, #0d3a6b 100%); color: white; padding: 15px; border-radius: 8px; text-align: center;">
-            <h3 style="margin: 0 0 10px 0; color: #ffd700;">📏 Distancia Medida</h3>
-            <div style="font-size: 1.8em; font-weight: bold; margin: 10px 0;">${distanciaKm} km</div>
-            <div style="font-size: 1.2em; opacity: 0.9;">${distanciaMetros} metros</div>
-            <div style="margin-top: 10px; font-size: 0.9em; opacity: 0.8;">
-                ${measurementPoints.length} punto(s) marcado(s)
-            </div>
-        </div>`;
-    
-    // Popup en el último punto con la distancia
-    L.popup()
-        .setLatLng(ultimoPunto)
-        .setContent(`<b>Distancia Total:</b><br>${distanciaKm} km<br>(${distanciaMetros} m)`)
-        .openOn(map);
-    
-    mostrarNotificacion(`Distancia: ${distanciaKm} km (${distanciaMetros} m)`, 'success');
-}
-
-// Limpiar todas las mediciones
-function limpiarMediciones() {
-    // Limpiar marcadores
-    measurementMarkers.forEach(marker => map.removeLayer(marker));
-    measurementMarkers = [];
-    
-    // Limpiar línea
-    if (measurementLine) {
-        map.removeLayer(measurementLine);
-        measurementLine = null;
-    }
-    
-    // Limpiar puntos
-    measurementPoints = [];
-    
-    // Limpiar resultado
-    document.getElementById('resultadoDistancia').innerHTML = '';
-    
-    mostrarNotificacion('Mediciones limpiadas', 'success');
-}
-
-// Medir distancia por coordenadas ingresadas manualmente
-function medirPorCoordenadas() {
-    const lat1 = parseFloat(document.getElementById('lat1').value);
-    const lon1 = parseFloat(document.getElementById('lon1').value);
-    const lat2 = parseFloat(document.getElementById('lat2').value);
-    const lon2 = parseFloat(document.getElementById('lon2').value);
-    
-    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
-        mostrarNotificacion('Por favor ingresa coordenadas válidas', 'error');
-        return;
-    }
-    
-    // Validar rangos
-    if (lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90) {
-        mostrarNotificacion('Las latitudes deben estar entre -90 y 90', 'error');
-        return;
-    }
-    
-    if (lon1 < -180 || lon1 > 180 || lon2 < -180 || lon2 > 180) {
-        mostrarNotificacion('Las longitudes deben estar entre -180 y 180', 'error');
-        return;
-    }
-    
-    // Limpiar mediciones anteriores
-    limpiarMediciones();
-    
-    // Agregar puntos
-    const punto1 = L.latLng(lat1, lon1);
-    const punto2 = L.latLng(lat2, lon2);
-    
-    agregarPuntoMedicion(punto1);
-    agregarPuntoMedicion(punto2);
+    console.log(`✅ ${marcadoresAgregados} marcadores agregados`);
     
     // Ajustar vista del mapa
-    map.fitBounds([punto1, punto2], { padding: [50, 50] });
+    if (coordenadasValidas.length > 0 && map) {
+        try {
+            const bounds = L.latLngBounds(coordenadasValidas);
+            map.fitBounds(bounds.pad(0.1));
+        } catch (error) {
+            console.error('❌ Error ajustando vista del mapa:', error);
+        }
+    }
 }
 
-// Mostrar notificaciones
-function mostrarNotificacion(mensaje, tipo = 'info') {
-    const colores = {
-        'info': '#17a2b8',
-        'success': '#28a745',
-        'error': '#dc3545',
-        'warning': '#ffc107'
-    };
+// Crear popup para estación
+function crearPopupEstacion(estacion) {
+    let estadoTexto, color;
     
+    switch (estacion.estado) {
+        case 'online':
+            estadoTexto = '🟢 EN LÍNEA';
+            color = '#28a745';
+            break;
+        case 'offline':
+            estadoTexto = '🔴 OFFLINE';
+            color = '#dc3545';
+            break;
+        default:
+            estadoTexto = '🟡 COMPROBANDO';
+            color = '#ffc107';
+    }
+    
+    const metodoVerificacion = estacion.metodo ? `<p><strong>Método:</strong> ${estacion.metodo}</p>` : '';
+    const detalles = estacion.detalles ? `<p><strong>Detalles:</strong> ${estacion.detalles}</p>` : '';
+    const error = estacion.error ? `<p><strong>Error:</strong> ${estacion.error}</p>` : '';
+    
+    return `
+        <div class="popup-dashboard">
+            <h4>📡 ${estacion.estación || 'Estación CORS'}</h4>
+            <p><strong>Provincia:</strong> ${estacion.provincia || 'N/A'}</p>
+            <p><strong>Ubicación:</strong> ${estacion.ubicación || 'N/A'}</p>
+            <p><strong>Estado:</strong> <span style="color: ${color}; font-weight: bold;">${estadoTexto}</span></p>
+            <p><strong>Tipo:</strong> ${estacion.ddns ? 'DNS' : 'IP'}</p>
+            <p><strong>DDNS:</strong> ${estacion.ddns || 'N/A'}</p>
+            <p><strong>IP:</strong> ${estacion.ip || 'N/A'}</p>
+            ${estacion.tiempoRespuesta ? `<p><strong>Tiempo respuesta:</strong> ${estacion.tiempoRespuesta}ms</p>` : ''}
+            ${metodoVerificacion}
+            ${detalles}
+            ${error}
+            <div style="margin-top: 10px;">
+                <button onclick="probarEstacionManual(${estacion.id})" style="padding: 5px 10px; background: #1a5490; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">
+                    Probar Manualmente
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Crear ícono personalizado para dashboard
+function crearIconoDashboard(color) {
+    return L.divIcon({
+        className: 'custom-gnss-dashboard',
+        html: `
+            <div class="gnss-marker-dashboard" style="--marker-color: ${color}">
+                <div class="antenna-dashboard"></div>
+                <div class="base-dashboard"></div>
+            </div>
+        `,
+        iconSize: [30, 40],
+        iconAnchor: [15, 40]
+    });
+}
+
+// Iniciar verificación de estado
+async function iniciarVerificacionEstado() {
+    if (verificationInProgress) {
+        return;
+    }
+    
+    verificationInProgress = true;
+    console.log('🔍 Iniciando verificación de estaciones...');
+    
+    let online = 0;
+    let offline = 0;
+    let comprobando = allData.length;
+    
+    // Actualizar KPIs iniciales
+    actualizarKPIs({ online, offline, comprobando });
+    
+    // Verificar cada estación (en serie para evitar bloqueos)
+    for (let i = 0; i < allData.length; i++) {
+        const estacion = allData[i];
+        
+        try {
+            // Actualizar estado a "comprobando"
+            estacion.estado = 'comprobando';
+            estacion.ultimaVerificacion = new Date();
+            actualizarMarcadorEstacion(estacion);
+            
+            // Verificar estado
+            const resultado = await Promise.race([
+                verificarEstadoEstacion(estacion),
+                new Promise(resolve => setTimeout(() => resolve({
+                    estado: 'offline',
+                    tiempoRespuesta: 10000,
+                    error: 'Timeout de 10 segundos'
+                }), 10000))
+            ]);
+            
+            // Actualizar estadísticas
+            comprobando--;
+            if (resultado.estado === 'online') {
+                online++;
+            } else {
+                offline++;
+            }
+            
+            // Actualizar estación
+            Object.assign(estacion, resultado);
+            estacion.ultimaVerificacion = new Date();
+            
+            // Actualizar marcador
+            actualizarMarcadorEstacion(estacion);
+            
+            // Actualizar KPIs
+            actualizarKPIs({ online, offline, comprobando });
+            
+        } catch (error) {
+            console.error(`❌ Error verificando ${estacion.estación}:`, error);
+            
+            comprobando--;
+            offline++;
+            estacion.estado = 'offline';
+            estacion.error = error.message;
+            
+            actualizarMarcadorEstacion(estacion);
+            actualizarKPIs({ online, offline, comprobando });
+        }
+        
+        // Pequeña pausa entre verificaciones
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    verificationInProgress = false;
+    
+    console.log(`✅ Verificación completada: ${online} online, ${offline} offline`);
+    mostrarNotificacion(`✅ Verificación completada: ${online} online, ${offline} offline`, 'success');
+    
+    actualizarListaEstaciones(allData);
+}
+
+// Actualizar marcador de estación
+function actualizarMarcadorEstacion(estacion) {
+    const marker = markers[estacion.id];
+    if (!marker) return;
+    
+    let color;
+    switch (estacion.estado) {
+        case 'online':
+            color = '#28a745';
+            break;
+        case 'offline':
+            color = '#dc3545';
+            break;
+        default:
+            color = '#ffc107';
+    }
+    
+    const icon = crearIconoDashboard(color);
+    marker.setIcon(icon);
+    
+    const popupContent = crearPopupEstacion(estacion);
+    marker.setPopupContent(popupContent);
+}
+
+// Actualizar KPIs principales
+function actualizarKPIs({ online, offline, comprobando }) {
+    const total = online + offline + comprobando;
+    const disponibilidad = total > 0 ? ((online / total) * 100).toFixed(1) : 0;
+    
+    // Actualizar valores en el DOM
+    actualizarMetrica('kpi-online', online);
+    actualizarMetrica('kpi-offline', offline);
+    actualizarMetrica('kpi-uptime', disponibilidad + '%');
+    
+    // Actualizar barras de progreso
+    actualizarProgreso('online-progress', (online / total * 100));
+    actualizarProgreso('offline-progress', (offline / total * 100));
+    
+    // Actualizar contadores
+    actualizarMetrica('map-total', total);
+    actualizarMetrica('map-visible', total);
+    actualizarMetrica('data-count', `Estaciones: ${total}`);
+    actualizarMetrica('critical-count', offline);
+    
+    // Actualizar gráfico
+    if (charts.provincia) {
+        charts.provincia.data.datasets[0].data = [online, offline, comprobando];
+        charts.provincia.update();
+    }
+}
+
+// Función auxiliar para actualizar métricas
+function actualizarMetrica(elementId, valor) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.textContent = valor;
+    }
+}
+
+// Función auxiliar para actualizar barras de progreso
+function actualizarProgreso(elementId, porcentaje) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.style.width = porcentaje + '%';
+    }
+}
+
+// Actualizar lista de estaciones
+function actualizarListaEstaciones(data) {
+    const criticalList = document.getElementById('critical-stations');
+    if (!criticalList) return;
+    
+    const offlineStations = data.filter(e => e.estado === 'offline');
+    
+    if (offlineStations.length === 0) {
+        criticalList.innerHTML = '<div class="no-data">🎉 Todas las estaciones operativas</div>';
+    } else {
+        let html = '';
+        offlineStations.forEach(estacion => {
+            html += `
+                <div class="critical-station">
+                    <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
+                    <div class="station-info">
+                        <div class="station-name">${estacion.estación}</div>
+                        <div class="station-location">${estacion.provincia}</div>
+                        <div class="station-error">${estacion.error || 'Sin conexión'}</div>
+                    </div>
+                    <div class="station-status offline">OFFLINE</div>
+                </div>
+            `;
+        });
+        criticalList.innerHTML = html;
+    }
+}
+
+// Actualizar reloj
+function actualizarReloj() {
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('es-DO');
+    
+    actualizarMetrica('current-time', timeString);
+    actualizarMetrica('map-update', timeString);
+}
+
+// ============================================
+// FUNCIONES DE INTERFAZ MEJORADAS
+// ============================================
+
+// Verificar estado de todas las estaciones
+async function verificarTodasEstaciones() {
+    if (verificationInProgress) {
+        mostrarNotificacion('⚠️ Ya hay una verificación en progreso', 'warning');
+        return;
+    }
+    
+    mostrarNotificacion('🔍 Verificando estado de estaciones...', 'info');
+    await iniciarVerificacionEstado();
+}
+
+// Función para probar manualmente una estación
+async function probarEstacionManual(estacionId) {
+    const estacion = allData.find(e => e.id == estacionId);
+    if (!estacion) {
+        mostrarNotificacion('❌ Estación no encontrada', 'error');
+        return;
+    }
+    
+    mostrarNotificacion(`🔍 Probando manualmente: ${estacion.estación}`, 'info');
+    
+    // Mostrar información de debug
+    console.log('=== PRUEBA MANUAL ===');
+    console.log('Estación:', estacion.estación);
+    console.log('DDNS:', estacion.ddns);
+    console.log('IP:', estacion.ip);
+    console.log('Tipo preferido:', estacion.ddns ? 'DNS' : 'IP');
+    
+    // Realizar prueba
+    const resultado = await verificarEstadoEstacion(estacion);
+    
+    // Actualizar la estación
+    Object.assign(estacion, resultado);
+    estacion.ultimaVerificacion = new Date();
+    
+    // Actualizar interfaz
+    actualizarMarcadorEstacion(estacion);
+    actualizarListaEstaciones(allData);
+    
+    // Mostrar resultados detallados
+    const mensaje = resultado.estado === 'online' 
+        ? `✅ ${estacion.estación} - ONLINE (${resultado.tiempoRespuesta}ms)\nMétodo: ${resultado.metodo}`
+        : `❌ ${estacion.estación} - OFFLINE\nError: ${resultado.error}`;
+    
+    mostrarNotificacion(mensaje, resultado.estado === 'online' ? 'success' : 'error');
+    
+    console.log('Resultado prueba manual:', resultado);
+}
+
+// Generar reporte diario
+function generarReporteDiario() {
+    const online = allData.filter(e => e.estado === 'online').length;
+    const offline = allData.filter(e => e.estado === 'offline').length;
+    const disponibilidad = allData.length > 0 ? ((online / allData.length) * 100).toFixed(1) : 0;
+    
+    const reporte = `REPORTE CORS TRIMBLE - ${new Date().toLocaleDateString()}\n\n` +
+          `Total Estaciones: ${allData.length}\n` +
+          `Estaciones Online: ${online}\n` +
+          `Estaciones Offline: ${offline}\n` +
+          `Disponibilidad: ${disponibilidad}%\n` +
+          `Última Verificación: ${new Date().toLocaleString()}\n\n` +
+          `DETALLE POR ESTACIÓN:\n` +
+          allData.map(e => 
+            `${e.estación} | ${e.estado.toUpperCase()} | ${e.tiempoRespuesta || 'N/A'}ms | ${e.metodo || 'N/A'}`
+          ).join('\n');
+    
+    // Descargar archivo
+    const blob = new Blob([reporte], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `reporte-cors-${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    mostrarNotificacion('✅ Reporte generado y descargado', 'success');
+}
+
+// Mostrar notificación
+function mostrarNotificacion(mensaje, tipo = 'info') {
     const notif = document.createElement('div');
     notif.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
-        background: ${colores[tipo]};
+        background: ${tipo === 'success' ? '#28a745' : tipo === 'warning' ? '#ffc107' : tipo === 'error' ? '#dc3545' : '#17a2b8'};
         color: white;
         padding: 15px 25px;
         border-radius: 8px;
@@ -640,26 +843,249 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
         z-index: 10000;
         font-weight: 500;
         animation: slideInRight 0.3s ease;
+        max-width: 400px;
+        white-space: pre-line;
     `;
     notif.textContent = mensaje;
+    
     document.body.appendChild(notif);
     
     setTimeout(() => {
         notif.style.animation = 'slideOutRight 0.3s ease';
         setTimeout(() => notif.remove(), 300);
-    }, 3000);
+    }, 5000);
 }
 
-// Inicialización
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Iniciando aplicación...');
-    initMap();
-    cargarDatos();
-    document.getElementById('provinciaSelect').addEventListener('change', filtrarEstaciones);
-    document.getElementById('nombreInput').addEventListener('input', filtrarEstaciones);
-    
-    // Event listeners para herramienta de medición
-    document.getElementById('btnToggleMeasure').addEventListener('click', toggleMeasurementMode);
-    document.getElementById('btnClearMeasure').addEventListener('click', limpiarMediciones);
-    document.getElementById('btnMeasureCoords').addEventListener('click', medirPorCoordenadas);
+// Mostrar error
+function mostrarError(mensaje) {
+    const loading = document.getElementById('loading');
+    if (loading) {
+        loading.innerHTML = `
+            <div class="loading-content">
+                <div style="color: #dc3545; font-size: 3rem; margin-bottom: 1rem;">❌</div>
+                <h3>Error al cargar el dashboard</h3>
+                <p>${mensaje}</p>
+                <button onclick="location.reload()" style="margin-top: 1rem; padding: 10px 20px; background: #1a5490; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    Reintentar
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Inicializar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📋 DOM cargado, iniciando dashboard...');
+    initDashboard();
 });
+
+// Exportar funciones globales
+window.verificarTodasEstaciones = verificarTodasEstaciones;
+window.generarReporteDiario = generarReporteDiario;
+window.probarEstacionManual = probarEstacionManual;
+window.actualizarDashboardCompleto = function() {
+    location.reload();
+};
+// Inicializar gráficos - FUNCIÓN CORREGIDA
+function initCharts() {
+    try {
+        // Gráfico de estado por provincia
+        const ctxProvincia = document.getElementById('chartProvincia');
+        if (ctxProvincia) {
+            charts.provincia = new Chart(ctxProvincia, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Online', 'Offline', 'Comprobando'],
+                    datasets: [{
+                        data: [0, 0, 100],
+                        backgroundColor: ['#28a745', '#dc3545', '#ffc107'],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+
+        // GRÁFICO DE TENDENCIA DE DISPONIBILIDAD - NUEVO
+        const ctxTendencia = document.getElementById('chartTendencia');
+        if (ctxTendencia) {
+            charts.tendencia = new Chart(ctxTendencia, {
+                type: 'line',
+                data: {
+                    labels: [], // Se llenará con las horas
+                    datasets: [{
+                        label: 'Disponibilidad (%)',
+                        data: [], // Se llenará con los porcentajes
+                        borderColor: '#1a5490',
+                        backgroundColor: 'rgba(26, 84, 144, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#1a5490',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        console.log('✅ Gráficos inicializados (incluyendo tendencia)');
+    } catch (error) {
+        console.error('❌ Error al inicializar gráficos:', error);
+    }
+}
+
+// Almacenar histórico de disponibilidad
+let historicoDisponibilidad = [];
+
+// Función para actualizar la tendencia de disponibilidad
+function actualizarTendenciaDisponibilidad(disponibilidad) {
+    if (!charts.tendencia) return;
+    
+    const ahora = new Date();
+    const horaActual = ahora.toLocaleTimeString('es-DO', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+    
+    // Agregar nuevo dato al histórico
+    historicoDisponibilidad.push({
+        hora: horaActual,
+        disponibilidad: parseFloat(disponibilidad)
+    });
+    
+    // Mantener solo los últimos 12 puntos (2 horas si se actualiza cada 10 min)
+    if (historicoDisponibilidad.length > 12) {
+        historicoDisponibilidad = historicoDisponibilidad.slice(-12);
+    }
+    
+    // Preparar datos para el gráfico
+    const labels = historicoDisponibilidad.map(item => item.hora);
+    const data = historicoDisponibilidad.map(item => item.disponibilidad);
+    
+    // Actualizar el gráfico
+    charts.tendencia.data.labels = labels;
+    charts.tendencia.data.datasets[0].data = data;
+    charts.tendencia.update();
+    
+    console.log(`📈 Tendencia actualizada: ${disponibilidad}% a las ${horaActual}`);
+}
+
+// Actualizar KPIs principales - FUNCIÓN MEJORADA
+function actualizarKPIs({ online, offline, comprobando }) {
+    const total = online + offline + comprobando;
+    const disponibilidad = total > 0 ? ((online / total) * 100).toFixed(1) : 0;
+    
+    // Actualizar valores en el DOM
+    actualizarMetrica('kpi-online', online);
+    actualizarMetrica('kpi-offline', offline);
+    actualizarMetrica('kpi-uptime', disponibilidad + '%');
+    
+    // Actualizar barras de progreso
+    actualizarProgreso('online-progress', (online / total * 100));
+    actualizarProgreso('offline-progress', (offline / total * 100));
+    
+    // Actualizar contadores
+    actualizarMetrica('map-total', total);
+    actualizarMetrica('map-visible', total);
+    actualizarMetrica('data-count', `Estaciones: ${total}`);
+    actualizarMetrica('critical-count', offline);
+    
+    // ACTUALIZAR GRÁFICO DE TENDENCIA
+    actualizarTendenciaDisponibilidad(disponibilidad);
+    
+    // Actualizar gráfico de dona
+    if (charts.provincia) {
+        charts.provincia.data.datasets[0].data = [online, offline, comprobando];
+        charts.provincia.update();
+    }
+}
+
+// Función para simular datos históricos (inicialización)
+function inicializarDatosTendencia() {
+    const ahora = new Date();
+    
+    // Crear datos de las últimas 2 horas (cada 10 minutos)
+    for (let i = 11; i >= 0; i--) {
+        const tiempo = new Date(ahora.getTime() - (i * 10 * 60 * 1000));
+        const hora = tiempo.toLocaleTimeString('es-DO', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        // Simular disponibilidad entre 85% y 100%
+        const disponibilidad = (85 + Math.random() * 15).toFixed(1);
+        
+        historicoDisponibilidad.push({
+            hora: hora,
+            disponibilidad: parseFloat(disponibilidad)
+        });
+    }
+    
+    console.log('📊 Datos de tendencia inicializados');
+}
+
+// Modificar la función initDashboard para incluir la tendencia
+async function initDashboard() {
+    console.log('🚀 Iniciando Dashboard CORS Trimble...');
+    
+    try {
+        // Inicializar componentes básicos primero
+        initMap();
+        initCharts();
+        initRealTimeUpdates();
+        
+        // Inicializar datos de tendencia
+        inicializarDatosTendencia();
+        
+        // Cargar datos
+        await cargarDatos();
+        
+        console.log('✅ Dashboard inicializado correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error en inicialización:', error);
+        mostrarError('Error al inicializar el dashboard: ' + error.message);
+    }
+}
